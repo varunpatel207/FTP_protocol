@@ -35,8 +35,8 @@ char* concat(const char *s1, const char *s2)
 
 char* mkd_method(char *buffer) {
     int i=0;
-    char * token = strtok(buffer, " ");
-    char *array[2];
+    char* token = strtok(buffer, " ");
+    char* array[2];
 
     while (token != NULL)
     {
@@ -45,6 +45,24 @@ char* mkd_method(char *buffer) {
     }
 
     if (mkdir(array[1], 0755) == 0){
+        return array[1];
+    }
+
+    return "";
+}
+
+char* rmd_method(char *buffer) {
+    int i=0;
+    char* token = strtok(buffer, " ");
+    char* array[2];
+
+    while (token != NULL)
+    {
+        array[i++] = token;
+        token = strtok (NULL, " ");
+    }
+
+    if (rmdir(array[1]) == 0){
         return array[1];
     }
 
@@ -134,14 +152,18 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    printf("%s\n", buffer);
+                    printf("Client: %s\n", buffer);
                     if(strcmp(buffer, "CWD") == 0) {
                         int sent = send(newSocket, home_dir, strlen(home_dir), 0);
                     }
                     if(strstr(buffer, "MKD") != NULL) {
                         char* dirname = mkd_method(buffer);
-                        printf("dirname returned back %s", dirname);
                         char* message = concat(dirname, " created successfully");
+                        int sent = send(newSocket, message, strlen(message), 0);
+                    }
+                    if(strstr(buffer, "RMD") != NULL) {
+                        char* dirname = rmd_method(buffer);
+                        char* message = concat(dirname, " removed successfully");
                         int sent = send(newSocket, message, strlen(message), 0);
                     }
                     bzero(buffer, sizeof(buffer));
