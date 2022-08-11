@@ -1,3 +1,8 @@
 ./cmake-build-debug
 ./COMP 8567 - Project.pdf
 ./main.c
+./.idea
+./socket_tut/client
+./socket_tut/server
+./client
+./server

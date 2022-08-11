@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 
-#define PORT 4442
+#define PORT 8002
 int clientSocket;
 void kill_server_sig_handler(int signum)
 {
@@ -54,10 +54,10 @@ int main()
 
     while (1)
     {
-        printf("Client: \t");
-        scanf("%s", &buffer[0]);
+        printf("Client: ");
+        fgets(buffer, 1024, stdin);
+        buffer[strcspn(buffer, "\n")] = 0;
         send(clientSocket, buffer, strlen(buffer), 0);
-
         if (strcmp(buffer, "exit") == 0)
         {
             close(clientSocket);
@@ -71,7 +71,7 @@ int main()
         }
         else
         {
-            printf("Server: \t%s\n", buffer);
+            printf("Server: %s\n", buffer);
         }
     }
 

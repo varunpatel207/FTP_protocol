@@ -4,12 +4,16 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
 
-#define PORT 4442
+#define PORT 8002
 int sockfd;
+
+void main_method(char *buffer);
+
 void kill_server_sig_handler(int signum)
 {
     if (signum == SIGINT)
@@ -17,6 +21,45 @@ void kill_server_sig_handler(int signum)
         close(sockfd);
         printf("\nSocket closed successfully\n");
     }
+}
+
+// helper method
+char* concat(const char *s1, const char *s2)
+{
+    char *result = malloc(strlen(s1) + strlen(s2) + 1); // +1 for the null-terminator
+    // in real code you would check for errors in malloc here
+    strcpy(result, s1);
+    strcat(result, s2);
+    return result;
+}
+
+char* mkd_method(char *buffer) {
+    printf("Creating directory: %s", buffer);
+
+    int i=0;
+    char * token = strtok(buffer, " ");
+    char *array[2];
+
+    while (token != NULL)
+    {
+        array[i++] = token;
+        token = strtok (NULL, " ");
+    }
+
+    for (i = 0; i < 2; ++i)
+        printf("token: %d, %s\n", i, array[i]);
+
+    int ret = mkdir(array[1], 0755);
+
+    if (ret == 0){
+        printf("Directory %s, created successfully\n", array[1]);
+        return array[1];
+    }
+    else{
+        printf("Unable to create directory %s\n", array[1]);
+    }
+
+    return "";
 }
 
 int main(int argc, char *argv[])
@@ -33,6 +76,7 @@ int main(int argc, char *argv[])
     char buffer[1024];
     pid_t childpid;
 
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     signal(SIGINT, kill_server_sig_handler);
 
     char home_dir[1024];
@@ -48,7 +92,6 @@ int main(int argc, char *argv[])
         getcwd(home_dir, 1024);
     }
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
         printf("[-]Error in connection.\n");
@@ -67,7 +110,7 @@ int main(int argc, char *argv[])
         printf("[-]Error in binding.\n");
         exit(1);
     }
-    printf("[+]Bind to port %d\n", 4442);
+    printf("[+]Bind to port %d\n", PORT);
 
     if (listen(sockfd, 10) == 0)
     {
@@ -102,7 +145,16 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    int sent = send(newSocket, buffer, strlen(buffer), 0);
+                    printf("%s\n", buffer);
+                    if(strcmp(buffer, "CWD") == 0) {
+                        int sent = send(newSocket, home_dir, strlen(home_dir), 0);
+                    }
+                    if(strstr(buffer, "MKD") != NULL) {
+                        char* dirname = mkd_method(buffer);
+                        printf("dirname returned back %s", dirname);
+                        char* message = concat(dirname, " created successfully");
+                        int sent = send(newSocket, message, strlen(message), 0);
+                    }
                     bzero(buffer, sizeof(buffer));
                 }
             }
