@@ -51,6 +51,24 @@ char* mkd_method(char *buffer) {
     return "";
 }
 
+char* dele_method(char *buffer) {
+    int i=0;
+    char* token = strtok(buffer, " ");
+    char* array[2];
+
+    while (token != NULL)
+    {
+        array[i++] = token;
+        token = strtok (NULL, " ");
+    }
+
+    if (remove(array[1]) == 0){
+        return array[1];
+    }
+
+    return "";
+}
+
 char* rmd_method(char *buffer) {
     int i=0;
     char* token = strtok(buffer, " ");
@@ -163,6 +181,11 @@ int main(int argc, char *argv[])
                     }
                     if(strstr(buffer, "RMD") != NULL) {
                         char* dirname = rmd_method(buffer);
+                        char* message = concat(dirname, " removed successfully");
+                        int sent = send(newSocket, message, strlen(message), 0);
+                    }
+                    if(strstr(buffer, "DELE") != NULL) {
+                        char* dirname = dele_method(buffer);
                         char* message = concat(dirname, " removed successfully");
                         int sent = send(newSocket, message, strlen(message), 0);
                     }
