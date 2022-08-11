@@ -34,8 +34,6 @@ char* concat(const char *s1, const char *s2)
 }
 
 char* mkd_method(char *buffer) {
-    printf("Creating directory: %s", buffer);
-
     int i=0;
     char * token = strtok(buffer, " ");
     char *array[2];
@@ -46,17 +44,8 @@ char* mkd_method(char *buffer) {
         token = strtok (NULL, " ");
     }
 
-    for (i = 0; i < 2; ++i)
-        printf("token: %d, %s\n", i, array[i]);
-
-    int ret = mkdir(array[1], 0755);
-
-    if (ret == 0){
-        printf("Directory %s, created successfully\n", array[1]);
+    if (mkdir(array[1], 0755) == 0){
         return array[1];
-    }
-    else{
-        printf("Unable to create directory %s\n", array[1]);
     }
 
     return "";
