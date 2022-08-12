@@ -10,7 +10,13 @@
 #include <signal.h>
 
 #define PORT 8002
+#define LOGIN_REQUIRED "530 Not logged in."
+#define LOGIN_SUCCESS "230 User logged in, proceed."
+#define ALREADY_LOGGED_IN "230 User already logged in, proceed."
+
 int sockfd;
+
+int logged_in_array[100];
 
 void main_method(char *buffer);
 
@@ -171,24 +177,45 @@ int main(int argc, char *argv[])
                 else
                 {
                     printf("Client: %s\n", buffer);
-                    if(strcmp(buffer, "CWD") == 0) {
-                        int sent = send(newSocket, home_dir, strlen(home_dir), 0);
-                    }
-                    if(strstr(buffer, "MKD") != NULL) {
-                        char* dirname = mkd_method(buffer);
-                        char* message = concat(dirname, " created successfully");
+
+                    if(logged_in_array[newSocket] == 1){
+                        if(strcmp(buffer, "PWD") == 0) {
+                            int sent = send(newSocket, home_dir, strlen(home_dir), 0);
+                        }
+                        if (strcmp(buffer, "CDUP") == 0)
+                        {
+                            int sent = send(newSocket, buffer, strlen(buffer), 0);
+                        }
+                        if (strstr(buffer, "CWD") != NULL)
+                        {
+                            int sent = send(newSocket, buffer, strlen(buffer), 0);
+                        }
+                        if(strstr(buffer, "MKD") != NULL) {
+                            char* dirname = mkd_method(buffer);
+                            char* message = concat(dirname, " created successfully");
+                            int sent = send(newSocket, message, strlen(message), 0);
+                        }
+                        if(strstr(buffer, "RMD") != NULL) {
+                            char* dirname = rmd_method(buffer);
+                            char* message = concat(dirname, " removed successfully");
+                            int sent = send(newSocket, message, strlen(message), 0);
+                        }
+                        if(strstr(buffer, "DELE") != NULL) {
+                            char* dirname = dele_method(buffer);
+                            char* message = concat(dirname, " removed successfully");
+                            int sent = send(newSocket, message, strlen(message), 0);
+                        }
+                    }  else {
+                        char* message = "";
+                        if (strstr(buffer, "USER") != NULL){
+                            logged_in_array[newSocket] = 1;
+                            message = LOGIN_SUCCESS;
+                        } else {
+                            message = LOGIN_REQUIRED;
+                        }
                         int sent = send(newSocket, message, strlen(message), 0);
                     }
-                    if(strstr(buffer, "RMD") != NULL) {
-                        char* dirname = rmd_method(buffer);
-                        char* message = concat(dirname, " removed successfully");
-                        int sent = send(newSocket, message, strlen(message), 0);
-                    }
-                    if(strstr(buffer, "DELE") != NULL) {
-                        char* dirname = dele_method(buffer);
-                        char* message = concat(dirname, " removed successfully");
-                        int sent = send(newSocket, message, strlen(message), 0);
-                    }
+
                     bzero(buffer, sizeof(buffer));
                 }
             }

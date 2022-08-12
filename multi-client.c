@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <libgen.h>
 
 #define PORT 8002
 int clientSocket;
@@ -54,6 +55,7 @@ int main()
 
     while (1)
     {
+        memset(buffer, 0, 1024);;
         printf("Client: ");
         fgets(buffer, 1024, stdin);
         buffer[strcspn(buffer, "\n")] = 0;
@@ -71,7 +73,37 @@ int main()
         }
         else
         {
-            printf("Server: %s\n", buffer);
+            if (strcmp(buffer, "CDUP") == 0)
+            {
+                char wd[100];
+                printf("previous working directory : %s\n", getcwd(wd, 100));
+                char resolved_path[1024];
+                char *parent_dir = dirname(wd);
+                chdir(parent_dir);
+                printf("parent : %s\n", parent_dir);
+            } else if (strstr(buffer, "CWD") != NULL)
+            {
+                int i=0;
+                char* token = strtok(buffer, " ");
+                char* array[2];
+                char wd[100];
+
+                while (token != NULL)
+                {
+                    array[i++] = token;
+                    token = strtok (NULL, " ");
+                }
+
+                printf("%s\n", array[1]);
+                printf("previous working dir : %s\n", getcwd(wd, 100));
+                char resolved_path[1024];
+                realpath(array[1], resolved_path);
+                chdir(resolved_path);
+                printf("current working directory : %s\n", getcwd(wd, 100));
+
+            } else {
+                printf("Server: %s\n", buffer);
+            }
         }
     }
 
