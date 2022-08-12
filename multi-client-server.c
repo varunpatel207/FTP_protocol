@@ -93,6 +93,60 @@ char* rmd_method(char *buffer) {
     return "";
 }
 
+int port_function(char *buffer) {
+    printf("port_function\n");
+
+    int i = 0;
+    char *token = strtok(buffer, " ");
+    char *array[2];
+    socklen_t addr_size;
+    struct sockaddr_in newAddr;
+    int new_ft_socket;
+    int new_socket;
+    struct sockaddr_in new_serv_addr;
+
+    while (token != NULL) {
+        array[i++] = token;
+        token = strtok(NULL, " ");
+    }
+
+    // array[1] = 2679
+    int new_port = atoi(array[1]);
+
+    printf("new port: %d\n", new_port);
+
+    new_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (new_socket < 0) {
+        printf("Socket create issue\n");
+        exit(1);
+    } else {
+        printf("[+]Binary Socket is created.\n");
+    }
+
+    // address for binary socket
+    memset(&new_serv_addr, '\0', sizeof(new_serv_addr));
+    new_serv_addr.sin_family = AF_INET;
+    new_serv_addr.sin_port = htons(new_port);
+    new_serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // bind new socket
+    int ret = bind(sockfd, (struct sockaddr *) &new_serv_addr, sizeof(new_serv_addr));
+    if (ret < 0) {
+        printf("Error in binding.\n");
+        exit(1);
+    }
+    printf("Bind to port %d\n", new_port);
+
+    // listen on new socket
+    if (listen(new_socket, 100) == 0) {
+        printf("Listening....111\n");
+        return 1;
+    } else {
+        printf("Error in binding.\n");
+        return 0;
+    }
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -107,7 +161,6 @@ int main(int argc, char *argv[])
     char buffer[1024];
     pid_t childpid;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     signal(SIGINT, kill_server_sig_handler);
 
     char home_dir[1024];
@@ -123,6 +176,7 @@ int main(int argc, char *argv[])
         getcwd(home_dir, 1024);
     }
 
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
         printf("[-]Error in connection.\n");
@@ -143,7 +197,7 @@ int main(int argc, char *argv[])
     }
     printf("[+]Bind to port %d\n", PORT);
 
-    if (listen(sockfd, 10) == 0)
+    if (listen(sockfd, 100) == 0)
     {
         printf("[+]Listening....\n");
     }
@@ -204,6 +258,29 @@ int main(int argc, char *argv[])
                             char* dirname = dele_method(buffer);
                             char* message = concat(dirname, " removed successfully");
                             int sent = send(newSocket, message, strlen(message), 0);
+                        }
+                        if(strstr(buffer, "PORT") != NULL) {
+                            int ft_socket_fd = port_function(buffer);
+                            if(ft_socket_fd == 1) {
+                                char* message = "Socket success.";
+                                int sent = send(newSocket, message, strlen(message), 0);
+
+                                int new_ft_socket;
+                                struct sockaddr_in new_ft_address;
+
+                                socklen_t addr_size;
+                                while(1) {
+                                    printf("in while");
+                                    new_ft_socket = accept(sockfd, (struct sockaddr *)&new_ft_address, &addr_size);
+                                    if(new_ft_socket > 0) {
+                                        break;
+                                    }
+                                }
+                                printf("new_ft_socket %d\n", new_ft_socket);
+                            } else {
+                                char* message = "Socket not success.";
+                                int sent = send(newSocket, message, strlen(message), 0);
+                            }
                         }
                     }  else {
                         char* message = "";
