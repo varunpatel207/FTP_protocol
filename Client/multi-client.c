@@ -10,7 +10,7 @@
 #include <libgen.h>
 #include <fcntl.h>
 
-#define PORT 8006
+#define PORT 8007
 #define EXIT "exit"
 #define LOGIN_REQUIRED "530 Not logged in."
 #define LOGIN_SUCCESS "230 User logged in, proceed."
@@ -26,7 +26,7 @@ int client_socket;
 
 void kill_server_sig_handler(int signum)
 {
-    if (signum == SIGINT)
+    if (signum == SIGINT || signum == SIGTSTP)
     {
         send(client_socket, EXIT, strlen(EXIT), 0);
         close(client_socket);
@@ -92,6 +92,7 @@ int write_file(int sockfd, char *buffer)
 int main()
 {
     signal(SIGINT, kill_server_sig_handler);
+    signal(SIGTSTP, kill_server_sig_handler);
 
     int ret;
     struct sockaddr_in server_addr;
@@ -134,7 +135,9 @@ int main()
         {
             fflush(stdout);
             int i = 0;
-            char *token = strtok(buffer, " ");
+            char temp_buffer[1024];
+            strcpy(temp_buffer, buffer);
+            char *token = strtok(temp_buffer, " ");
             char *array[2];
             char wd[100];
 
@@ -145,7 +148,6 @@ int main()
             }
 
             char file_name[1024];
-            char* prev_filename = split_command(array[1]);
             realpath(array[1], file_name);
 
             send_file(file_name, new_client_socket);
@@ -156,7 +158,7 @@ int main()
         if (strcmp(buffer, "exit") == 0)
         {
             close(client_socket);
-            printf("[-]Disconnected from server.\n");
+            printf("Disconnected from server.\n");
             exit(1);
         }
 
@@ -206,18 +208,22 @@ int main()
                 new_client_socket = socket(AF_INET, SOCK_STREAM, 0);
                 server_addr.sin_port = htons(new_port);
                 new_ret = connect(new_client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
+                printf("%s\n", OPEN_CONNECTION_NO_TRANSFER);
             }
             else if (strstr(buffer, "STOR") != NULL)
             {
                 printf("Server: %s\n", response_buffer);
+                printf("File uploaded successfully.\n");
                 close(new_client_socket);
             }
             else if (strstr(buffer, "RETR") != NULL)
             {
                 fflush(stdout);
                 char wd[100];
+                char temp_buffer[1024];
+                strcpy(temp_buffer, buffer);
 
-                char* prev_file_name = split_command(buffer);
+                char* prev_file_name = split_command(temp_buffer);
                 char file_name[1024];
                 realpath(prev_file_name, file_name);
 
@@ -225,7 +231,7 @@ int main()
 
                 close(new_client_socket);
                 printf("Server: %s\n", response_buffer);
-                printf("Data written in the file.\n");
+                printf("File downloaded successfully.\n");
             }
             else if (strstr(buffer, "RNFR") != NULL)
             {

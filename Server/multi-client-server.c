@@ -11,12 +11,14 @@
 #include <ctype.h>
 #include <fcntl.h>
 
-#define PORT 8006
+#define PORT 8007
+#define COMMAND_OKAY "200 Command okay."
 #define LOGIN_REQUIRED "530 Not logged in."
 #define LOGIN_SUCCESS "230 User logged in, proceed."
 #define ALREADY_LOGGED_IN "230 User already logged in, proceed."
 #define OPEN_CONNECTION_NO_TRANSFER "225 Data connection open; no transfer in progress"
 #define FILE_ACTION_COMPLETED "250 Requested file action okay, completed."
+#define FILE_NOT_FOUND " 550 Requested action not taken. File unavailable."
 
 int sockfd;
 
@@ -28,7 +30,7 @@ void main_method(char *buffer);
 
 void kill_server_sig_handler(int signum)
 {
-    if (signum == SIGINT)
+    if (signum == SIGINT || signum == SIGTSTP)
     {
 
         char *message = "exit";
@@ -116,8 +118,6 @@ char *rmd_method(char *buffer)
 
 int port_function(char *buffer)
 {
-    printf("port_function\n");
-
     int i = 0;
     char *token = strtok(buffer, " ");
     char *array[2];
@@ -136,17 +136,15 @@ int port_function(char *buffer)
     // array[1] = 2679
     int new_port = atoi(array[1]);
 
-    printf("new port: %d\n", new_port);
-
     new_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (new_socket < 0)
     {
-        printf("Socket create issue\n");
+        printf("Data transfer socket create issue\n");
         exit(1);
     }
     else
     {
-        printf("[+]Binary Socket is created.\n");
+        printf("Data transfer socket is created.\n");
     }
 
     // address for binary socket
@@ -167,7 +165,7 @@ int port_function(char *buffer)
     // listen on new socket
     if (listen(new_socket, 100) == 0)
     {
-        printf("Listening....111\n");
+        printf("Listening....\n");
         return new_socket;
     }
     else
@@ -177,66 +175,36 @@ int port_function(char *buffer)
     }
 }
 
-int write_file(int sockfd)
+int write_file(int sockfd, char *buffer)
 {
     int n;
     FILE *fp;
-    char *filename = "recv.txt";
-    char buffer[1024] = "\0";
-    printf("in write file\n");
+    char *filename;
+    char data[1024] = "\0";
+
+    int i = 0;
+    char *token = strtok(buffer, " ");
+    char *array[2];
+
+    while (token != NULL)
+    {
+        array[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    filename = array[1];
 
     fp = fopen(filename, "w");
-    // int fd1 = open("re1.txt", O_WRONLY | O_CREAT, 0777);
     while (1)
     {
-        n = recv(sockfd, buffer, 1024, 0);
-        printf("n : %s", buffer);
+        n = recv(sockfd, data, 1024, 0);
         if (n <= 0)
         {
-            printf("in if break");
             break;
             return 0;
         }
-        // printf("in here : ");
-        // fputs(buffer, fp);
-        // fflush(stdin);
-        fprintf(fp, "%s", buffer);
-        // write(fd1, buffer, 1024);
-        memset(buffer, 0, 1024);
+        fprintf(fp, "%s", data);
+        memset(data, 0, 1024);
     }
-    // close(fd1);
-    fclose(fp);
-    return 1;
-}
-
-int append_file(int sockfd)
-{
-    int n;
-    FILE *fp;
-    char *filename = "recv.txt";
-    char buffer[1024] = "\0";
-    printf("in write file\n");
-
-    fp = fopen(filename, "a");
-    // int fd1 = open("re1.txt", O_WRONLY | O_CREAT, 0777);
-    while (1)
-    {
-        n = recv(sockfd, buffer, 1024, 0);
-        printf("n : %s", buffer);
-        if (n <= 0)
-        {
-            printf("in if break");
-            break;
-            return 0;
-        }
-        // printf("in here : ");
-        // fputs(buffer, fp);
-        // fflush(stdin);
-        fprintf(fp, "%s", buffer);
-        // write(fd1, buffer, 1024);
-        memset(buffer, 0, 1024);
-    }
-    // close(fd1);
     fclose(fp);
     return 1;
 }
@@ -253,14 +221,11 @@ int send_file(int sockfd, char *buffer)
         token = strtok(NULL, " ");
     }
 
-    // int n;
     char data[1024];
     FILE *fp;
     fp = fopen(array[1], "r");
-    printf("socket : %d", sockfd);
     while (fgets(data, 1024, fp) != NULL)
     {
-        printf("data : %s", data);
         if (send(sockfd, data, sizeof(data), 0) == -1)
         {
             perror("[-]Error in sending file.");
@@ -275,7 +240,6 @@ int send_file(int sockfd, char *buffer)
 
 int rename_from_method(int sockfd, char *buffer)
 {
-    // printf("in rmfr\n");
     int i = 0;
     char *token = strtok(buffer, " ");
     char *array[2];
@@ -342,6 +306,7 @@ int main(int argc, char *argv[])
     pid_t childpid;
 
     signal(SIGINT, kill_server_sig_handler);
+    signal(SIGTSTP, kill_server_sig_handler);
 
     char home_dir[1024];
     if (argc == 3)
@@ -359,10 +324,10 @@ int main(int argc, char *argv[])
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
-        printf("[-]Error in connection.\n");
+        printf("Error in connection.\n");
         exit(1);
     }
-    printf("[+]Server Socket is created.\n");
+    printf("Server Socket is created.\n");
 
     memset(&serverAddr, '\0', sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
@@ -372,18 +337,18 @@ int main(int argc, char *argv[])
     ret = bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
     if (ret < 0)
     {
-        printf("[-]Error in binding.\n");
+        printf("Error in binding.\n");
         exit(1);
     }
-    printf("[+]Bind to port %d\n", PORT);
+    printf("Bind to port %d\n", PORT);
 
     if (listen(sockfd, 100) == 0)
     {
-        printf("[+]Listening....\n");
+        printf("Listening....\n");
     }
     else
     {
-        printf("[-]Error in binding.\n");
+        printf("Error in binding.\n");
     }
 
     while (1)
@@ -459,7 +424,6 @@ int main(int argc, char *argv[])
                                 socklen_t addr_size;
                                 while (1)
                                 {
-                                    printf("in while\n");
                                     if (ft_socket_fd > -1)
                                     {
                                         new_ft_socket = accept(ft_socket_fd, (struct sockaddr *)&new_ft_address, &addr_size);
@@ -474,7 +438,6 @@ int main(int argc, char *argv[])
                                         break;
                                     }
                                 }
-                                printf("new_ft_socket %d\n", new_ft_socket);
                             }
 
                             else
@@ -485,22 +448,20 @@ int main(int argc, char *argv[])
                         }
                         if (strstr(buffer, "STOR") != NULL)
                         {
-                            int res = write_file(new_ft_socket);
-                            printf("[+]Data written in the file successfully.\n");
+                            int res = write_file(new_ft_socket, buffer);
+                            printf("%s\n", FILE_ACTION_COMPLETED);
                             close(new_ft_socket);
                             int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);
                         }
                         if (strstr(buffer, "RETR") != NULL)
                         {
-                            printf("%s\n", buffer);
                             int res = send_file(new_ft_socket, buffer);
-                            printf("Data sent successfully.\n");
+                            printf("%s\n", FILE_ACTION_COMPLETED);
                             close(new_ft_socket);
                             int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);
                         }
                         if (strstr(buffer, "RNFR") != NULL)
                         {
-                            // printf("in rnfr main\n");
                             int result = rename_from_method(newSocket, buffer);
                             char *message = "";
                             if (result)
@@ -509,7 +470,7 @@ int main(int argc, char *argv[])
                             }
                             else
                             {
-                                message = "File not found on Server";
+                                message = FILE_NOT_FOUND;
                             }
 
                             int sent = send(newSocket, message, strlen(message), 0);
@@ -525,14 +486,13 @@ int main(int argc, char *argv[])
                             }
                             else
                             {
-                                message = "File can not be renamed";
+                                message = FILE_NOT_FOUND;
                             }
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strcmp(buffer, "NOOP") == 0)
                         {
-                            char *message = "200 Command okay.";
-                            int sent = send(newSocket, message, strlen(message), 0);
+                            int sent = send(newSocket, COMMAND_OKAY, strlen(COMMAND_OKAY), 0);
                         }
                         if (strstr(buffer, "LIST") != NULL)
                         {
