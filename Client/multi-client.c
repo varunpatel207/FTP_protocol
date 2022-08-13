@@ -10,7 +10,7 @@
 #include <libgen.h>
 #include <fcntl.h>
 
-#define PORT 8004
+#define PORT 8006
 int clientSocket;
 
 void kill_server_sig_handler(int signum)
@@ -100,9 +100,40 @@ void send_file(char *filename, int sockfd)
     // }
 }
 
+int write_file(int sockfd)
+{
+    int n;
+    FILE *fp;
+    char *filename = "client_recv.txt";
+    char buffer[1024] = "\0";
+    printf("in write file\n");
+
+    fp = fopen(filename, "w");
+    // int fd1 = open("re1.txt", O_WRONLY | O_CREAT, 0777);
+    while (1)
+    {
+        n = recv(sockfd, buffer, 1024, 0);
+        printf("n : %s", buffer);
+        if (n <= 0)
+        {
+            printf("in if break");
+            break;
+            return 0;
+        }
+        // printf("in here : ");
+        // fputs(buffer, fp);
+        // fflush(stdin);
+        fprintf(fp, "%s", buffer);
+        // write(fd1, buffer, 1024);
+        memset(buffer, 0, 1024);
+    }
+    // close(fd1);
+    fclose(fp);
+    return 1;
+}
+
 int main()
 {
-
     signal(SIGINT, kill_server_sig_handler);
 
     int ret;
@@ -169,6 +200,7 @@ int main()
             // }
 
             send_file(file_name, new_client_socket);
+            close(new_client_socket);
             printf("[+]File data sent successfully.\n");
         }
 
@@ -239,6 +271,35 @@ int main()
             {
                 printf("response : %s\n", response_buffer);
                 printf("buffer : %s\n", buffer);
+            }
+            else if (strstr(buffer, "RETR") != NULL)
+            {
+                printf("in RETR : %s\n", buffer);
+                fflush(stdout);
+                int i = 0;
+                char *token = strtok(buffer, " ");
+                char *array[2];
+                char wd[100];
+
+                while (token != NULL)
+                {
+                    array[i++] = token;
+                    token = strtok(NULL, " ");
+                }
+
+                char file_name[1024];
+                realpath(array[1], file_name);
+                printf("filename : %s\n", file_name);
+                // FILE *fp = fopen(file_name, "r");
+                // if (fp == NULL)
+                // {
+                //     perror("[-]Error in reading file.");
+                //     exit(1);
+                // }
+
+                write_file(new_client_socket);
+                close(new_client_socket);
+                printf("[+]File data sent successfully.\n");
             }
             // else if (strstr(buffer, "STOR") != NULL)
             // {
