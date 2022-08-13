@@ -164,6 +164,27 @@ int main()
     }
     printf("[+]Connected to Server.\n");
 
+    // while (1)
+    // {
+    //     int signal_from_server = recv(clientSocket, response_buffer, 1024, 0);
+    //     if (strcmp(response_buffer, "exit") == 0)
+    //     {
+    //         close(clientSocket);
+    //         printf("[-]Disconnected from server.\n");
+    //         exit(1);
+    //     }
+    //     else
+    //     {
+    // while (1)
+    // {
+    //     int signal_from_server = recv(clientSocket, response_buffer, 1024, 0);
+    //     if (strcmp(response_buffer, "exit") == 0)
+    //     {
+    //         close(clientSocket);
+    //         printf("[-]Disconnected from server.\n");
+    //         exit(1);
+    //     }
+    // }
     while (1)
     {
         int new_ret = -1;
@@ -212,12 +233,15 @@ int main()
             exit(1);
         }
 
-        if (recv(clientSocket, response_buffer, 1024, 0) < 0)
+        int n_read = 0;
+        if (n_read = recv(clientSocket, response_buffer, 1024, 0) < 0)
         {
+
             printf("[-]Error in receiving data.\n");
         }
         else
         {
+
             if (strcmp(response_buffer, "CDUP") == 0)
             {
                 char wd[100];
@@ -271,6 +295,7 @@ int main()
             {
                 printf("response : %s\n", response_buffer);
                 printf("buffer : %s\n", buffer);
+                close(new_client_socket);
             }
             else if (strstr(buffer, "RETR") != NULL)
             {
@@ -299,36 +324,24 @@ int main()
 
                 write_file(new_client_socket);
                 close(new_client_socket);
-                printf("[+]File data sent successfully.\n");
+                printf("[+]Data written in the file successfully.\n");
             }
-            // else if (strstr(buffer, "STOR") != NULL)
-            // {
-            //     int i = 0;
-            //     char *token = strtok(buffer, " ");
-            //     char *array[2];
-            //     char wd[100];
-
-            //     while (token != NULL)
-            //     {
-            //         array[i++] = token;
-            //         token = strtok(NULL, " ");
-            //     }
-
-            //     char *file_name;
-            //     realpath(array[1], file_name);
-            //     printf("filename : %s\n", file_name);
-
-            //     if (new_ret > -1)
-            //     {
-            //         file_send(new_client_socket, response_buffer, file_name);
-            //     }
-            // }
+            else if (strstr(buffer, "RNFR") != NULL)
+            {
+                printf("%s\n", response_buffer);
+            }
+            else if (strcmp(buffer, "NOOP") == 0)
+            {
+                printf("%s\n", response_buffer);
+            }
             else
             {
                 printf("Server: %s\n", response_buffer);
             }
         }
+        // }
     }
+    // }
 
     return 0;
 }
