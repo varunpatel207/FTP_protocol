@@ -11,72 +11,50 @@
 #include <fcntl.h>
 
 #define PORT 8006
-int clientSocket;
+#define EXIT "exit"
+#define LOGIN_REQUIRED "530 Not logged in."
+#define LOGIN_SUCCESS "230 User logged in, proceed."
+#define ALREADY_LOGGED_IN "230 User already logged in, proceed."
+#define OPEN_CONNECTION_NO_TRANSFER "225 Data connection open; no transfer in progress."
+#define FILE_ACTION_COMPLETED "250 Requested file action okay, completed."
+#define SOCKET_CLOSED "426 Connection closed."
+#define CONNECTION_ERROR "425 Can't open data connection."
+#define COMMAND_OK "200 Command okay."
+#define SYNTAX_ERROR "500 Syntax error, command unrecognized."
+
+int client_socket;
 
 void kill_server_sig_handler(int signum)
 {
     if (signum == SIGINT)
     {
-        char *message = "exit";
-        send(clientSocket, message, strlen(message), 0);
-        close(clientSocket);
-        printf("\n[-]Disconnected from server.\n");
+        send(client_socket, EXIT, strlen(EXIT), 0);
+        close(client_socket);
+        printf("%s\n", SOCKET_CLOSED);
         exit(1);
     }
 }
 
-// void file_send(int sockFD, char *buffer, char *fileName)
-// {
-//     printf("buffer : %s", buffer);
+char *split_command(char *buffer) {
+    int i = 0;
+    char *token = strtok(buffer, " ");
+    char *array[2];
 
-//     printf("\nFile Sending In Process\n");
-//     sleep(2);
-//     FILE *fPtr;
-//     fPtr = fopen(fileName, "r");
-//     if (fPtr == NULL)
-//     {
-//         printf("Cannot open file\t:\t%s \n", fileName);
-//     }
-//     else
-//     {
-//         char ch;
-//         bzero(buffer, sizeof(buffer));
-//         int i = 0;
-//         while (1)
-//         {
-//             while (((ch = fgetc(fPtr)) != EOF) && (strlen(buffer) - 1 != sizeof(buffer)))
-//             {
-//                 buffer[i] = ch;
-//                 i++;
-//             }
-//             buffer[i] = '\0';
-//             if (ch == EOF)
-//             {
-//                 write(sockFD, buffer, strlen(buffer));
-//                 break;
-//             }
-//             if (strlen(buffer) == sizeof(buffer))
-//             {
-//                 write(sockFD, buffer, strlen(buffer));
-//                 bzero(buffer, sizeof(buffer));
-//                 i = 0;
-//             }
-//         }
-//         printf("\nFile Sent Successfully\n");
-//         fclose(fPtr);
-//     }
-// }
+    while (token != NULL)
+    {
+        array[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    return array[1];
+}
 
 void send_file(char *filename, int sockfd)
 {
-    // int n;
     char data[1024];
     FILE *fp;
     fp = fopen(filename, "r");
-    printf("socket : %d", sockfd);
     while (fgets(data, 1024, fp) != NULL)
     {
-        printf("data : %s", data);
         if (send(sockfd, data, sizeof(data), 0) == -1)
         {
             perror("[-]Error in sending file.");
@@ -86,48 +64,27 @@ void send_file(char *filename, int sockfd)
     }
     fclose(fp);
     fflush(stdout);
-    // int fd1 = open(filename, O_RDONLY);
-    // int n = 0;
-    // while (n = read(fd1, data, 1024) > 0)
-    // {
-    //     printf("data : %s", data);
-    //     if (send(sockfd, data, n, 0) == -1)
-    //     {
-    //         perror("[-]Error in sending file.");
-    //         exit(1);
-    //     }
-    //     memset(data, 0, 1024);
-    // }
 }
 
-int write_file(int sockfd)
+int write_file(int sockfd, char *buffer)
 {
     int n;
     FILE *fp;
-    char *filename = "client_recv.txt";
-    char buffer[1024] = "\0";
-    printf("in write file\n");
+    char *filename = split_command(buffer);
+    char data[1024] = "\0";
 
     fp = fopen(filename, "w");
-    // int fd1 = open("re1.txt", O_WRONLY | O_CREAT, 0777);
     while (1)
     {
-        n = recv(sockfd, buffer, 1024, 0);
-        printf("n : %s", buffer);
+        n = recv(sockfd, data, 1024, 0);
         if (n <= 0)
         {
-            printf("in if break");
             break;
             return 0;
         }
-        // printf("in here : ");
-        // fputs(buffer, fp);
-        // fflush(stdin);
-        fprintf(fp, "%s", buffer);
-        // write(fd1, buffer, 1024);
-        memset(buffer, 0, 1024);
+        fprintf(fp, "%s", data);
+        memset(data, 0, 1024);
     }
-    // close(fd1);
     fclose(fp);
     return 1;
 }
@@ -137,54 +94,32 @@ int main()
     signal(SIGINT, kill_server_sig_handler);
 
     int ret;
-    struct sockaddr_in serverAddr;
+    struct sockaddr_in server_addr;
     char buffer[1024];
     char response_buffer[1024];
 
-    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientSocket < 0)
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket < 0)
     {
-        printf("[-]Error in connection.\n");
+        printf("%s\n", "Socket connection error");
         exit(1);
     }
-    printf("[+]Client Socket is created.\n");
-
-    memset(&serverAddr, '\0', sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    printf("%s\n", "Socket connected successfully");
 
     // socket connect for file transfer
+    memset(&server_addr, '\0', sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_addr.sin_port = htons(PORT);
 
-    serverAddr.sin_port = htons(PORT);
-    ret = connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+    ret = connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (ret < 0)
     {
-        printf("[-]Error in connection.\n");
+        printf("%s\n", CONNECTION_ERROR);
         exit(1);
     }
-    printf("[+]Connected to Server.\n");
+    printf("%s\n", OPEN_CONNECTION_NO_TRANSFER);
 
-    // while (1)
-    // {
-    //     int signal_from_server = recv(clientSocket, response_buffer, 1024, 0);
-    //     if (strcmp(response_buffer, "exit") == 0)
-    //     {
-    //         close(clientSocket);
-    //         printf("[-]Disconnected from server.\n");
-    //         exit(1);
-    //     }
-    //     else
-    //     {
-    // while (1)
-    // {
-    //     int signal_from_server = recv(clientSocket, response_buffer, 1024, 0);
-    //     if (strcmp(response_buffer, "exit") == 0)
-    //     {
-    //         close(clientSocket);
-    //         printf("[-]Disconnected from server.\n");
-    //         exit(1);
-    //     }
-    // }
     while (1)
     {
         int new_ret = -1;
@@ -197,7 +132,6 @@ int main()
 
         if (strstr(buffer, "STOR") != NULL)
         {
-            printf("in stor : %s\n", buffer);
             fflush(stdout);
             int i = 0;
             char *token = strtok(buffer, " ");
@@ -211,30 +145,23 @@ int main()
             }
 
             char file_name[1024];
+            char* prev_filename = split_command(array[1]);
             realpath(array[1], file_name);
-            printf("filename : %s\n", file_name);
-            // FILE *fp = fopen(file_name, "r");
-            // if (fp == NULL)
-            // {
-            //     perror("[-]Error in reading file.");
-            //     exit(1);
-            // }
 
             send_file(file_name, new_client_socket);
             close(new_client_socket);
-            printf("[+]File data sent successfully.\n");
         }
 
-        send(clientSocket, buffer, strlen(buffer), 0);
+        send(client_socket, buffer, strlen(buffer), 0);
         if (strcmp(buffer, "exit") == 0)
         {
-            close(clientSocket);
+            close(client_socket);
             printf("[-]Disconnected from server.\n");
             exit(1);
         }
 
         int n_read = 0;
-        if (n_read = recv(clientSocket, response_buffer, 1024, 0) < 0)
+        if ((n_read = recv(client_socket, response_buffer, 1024, 0)) < 0)
         {
 
             printf("[-]Error in receiving data.\n");
@@ -273,58 +200,32 @@ int main()
             }
             else if (strcmp(response_buffer, "Socket success.") == 0)
             {
-                int i = 0;
-                char *token = strtok(buffer, " ");
-                char *array[2];
                 char wd[100];
-
-                while (token != NULL)
-                {
-                    array[i++] = token;
-                    token = strtok(NULL, " ");
-                }
-
-                int new_port = atoi(array[1]);
-
+                char* port_number = split_command(buffer);
+                int new_port = atoi(port_number);
                 new_client_socket = socket(AF_INET, SOCK_STREAM, 0);
-                printf("new socket : %d", new_client_socket);
-                serverAddr.sin_port = htons(new_port);
-                new_ret = connect(new_client_socket, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+                server_addr.sin_port = htons(new_port);
+                new_ret = connect(new_client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
             }
             else if (strstr(buffer, "STOR") != NULL)
             {
-                printf("response : %s\n", response_buffer);
-                printf("buffer : %s\n", buffer);
+                printf("Server: %s\n", response_buffer);
                 close(new_client_socket);
             }
             else if (strstr(buffer, "RETR") != NULL)
             {
-                printf("in RETR : %s\n", buffer);
                 fflush(stdout);
-                int i = 0;
-                char *token = strtok(buffer, " ");
-                char *array[2];
                 char wd[100];
 
-                while (token != NULL)
-                {
-                    array[i++] = token;
-                    token = strtok(NULL, " ");
-                }
-
+                char* prev_file_name = split_command(buffer);
                 char file_name[1024];
-                realpath(array[1], file_name);
-                printf("filename : %s\n", file_name);
-                // FILE *fp = fopen(file_name, "r");
-                // if (fp == NULL)
-                // {
-                //     perror("[-]Error in reading file.");
-                //     exit(1);
-                // }
+                realpath(prev_file_name, file_name);
 
-                write_file(new_client_socket);
+                write_file(new_client_socket, buffer);
+
                 close(new_client_socket);
-                printf("[+]Data written in the file successfully.\n");
+                printf("Server: %s\n", response_buffer);
+                printf("Data written in the file.\n");
             }
             else if (strstr(buffer, "RNFR") != NULL)
             {

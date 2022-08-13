@@ -494,7 +494,7 @@ int main(int argc, char *argv[])
                         {
                             printf("%s\n", buffer);
                             int res = send_file(new_ft_socket, buffer);
-                            printf("[+]Data sent successfully.\n");
+                            printf("Data sent successfully.\n");
                             close(new_ft_socket);
                             int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);
                         }
