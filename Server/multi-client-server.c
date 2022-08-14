@@ -538,7 +538,7 @@ int main(int argc, char *argv[])
                         {
                             // printf("in rnfr main\n");
                             int result = rnto_function(newSocket, buffer);
-                            char *message = result ? "File renamed successfully" : FILE_NOT_FOUND;
+                            char *message = result ? "File renamed successfully." : FILE_NOT_FOUND;
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strcmp(buffer, "NOOP") == 0)

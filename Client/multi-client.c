@@ -24,6 +24,8 @@
 
 int client_socket;
 
+
+// signal handler
 void kill_server_sig_handler(int signum)
 {
     if (signum == SIGINT || signum == SIGTSTP)
@@ -35,6 +37,7 @@ void kill_server_sig_handler(int signum)
     }
 }
 
+// helper method
 char *split_command(char *buffer) {
     int i = 0;
     char *token = strtok(buffer, " ");
@@ -48,6 +51,7 @@ char *split_command(char *buffer) {
     return array[1];
 }
 
+// function to send file to client over data transfer port
 void send_file(char *filename, int sockfd)
 {
     char data[1024];
@@ -66,6 +70,7 @@ void send_file(char *filename, int sockfd)
     fflush(stdout);
 }
 
+// function to handle write downloaded file from server over data transfer socket
 int write_file(int sockfd, char *buffer)
 {
     int n;
@@ -99,6 +104,7 @@ int main()
     char buffer[1024];
     char response_buffer[1024];
 
+    // create client socket
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket < 0)
     {
@@ -113,6 +119,7 @@ int main()
     server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     server_addr.sin_port = htons(PORT);
 
+    // connect client socket to server socket
     ret = connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (ret < 0)
     {
@@ -131,52 +138,44 @@ int main()
         fgets(buffer, 1024, stdin);
         buffer[strcspn(buffer, "\n")] = 0;
 
+        // code to handle STOR command
+        // send file data to server on data transfer port
         if (strstr(buffer, "STOR") != NULL)
         {
             fflush(stdout);
-            int i = 0;
             char temp_buffer[1024];
             strcpy(temp_buffer, buffer);
-            char *token = strtok(temp_buffer, " ");
-            char *array[2];
-            char wd[100];
+            char file_real_path[1024];
 
-            while (token != NULL)
-            {
-                array[i++] = token;
-                token = strtok(NULL, " ");
-            }
+            char* filename = split_command(temp_buffer);
 
-            char file_name[1024];
-            realpath(array[1], file_name);
+            realpath(filename, file_real_path);
 
-            send_file(file_name, new_client_socket);
+            send_file(file_real_path, new_client_socket);
             close(new_client_socket);
         }
+
+        // code to handle APPE command
+        // send file data to server on data transfer port
         if (strstr(buffer, "APPE") != NULL)
         {
             fflush(stdout);
-            int i = 0;
             char temp_buffer[1024];
+            char file_real_path[1024];
+
             strcpy(temp_buffer, buffer);
-            char *token = strtok(temp_buffer, " ");
-            char *array[2];
-            char wd[100];
 
-            while (token != NULL)
-            {
-                array[i++] = token;
-                token = strtok(NULL, " ");
-            }
+            char *filename = split_command(temp_buffer);
+            realpath(filename, file_real_path);
 
-            char file_name[1024];
-            realpath(array[1], file_name);
-
-            send_file(file_name, new_client_socket);
+            send_file(file_real_path, new_client_socket);
             close(new_client_socket);
         }
 
+        // send command to client
         send(client_socket, buffer, strlen(buffer), 0);
+
+        // close client socket on exit
         if (strcmp(buffer, "exit") == 0)
         {
             close(client_socket);
@@ -187,12 +186,11 @@ int main()
         int n_read = 0;
         if ((n_read = recv(client_socket, response_buffer, 1024, 0)) < 0)
         {
-
-            printf("[-]Error in receiving data.\n");
+            printf("Error in receiving data.\n");
         }
         else
         {
-
+            // move to parent directory of CWD
             if (strcmp(response_buffer, "CDUP") == 0)
             {
                 char wd[100];
@@ -202,26 +200,22 @@ int main()
                 chdir(parent_dir);
                 printf("parent : %s\n", parent_dir);
             }
+
+            // CWD on client side
             else if (strstr(response_buffer, "CWD") != NULL)
             {
-                int i = 0;
-                char *token = strtok(buffer, " ");
-                char *array[2];
                 char wd[100];
+                char *dirname = split_command(buffer);
 
-                while (token != NULL)
-                {
-                    array[i++] = token;
-                    token = strtok(NULL, " ");
-                }
-
-                printf("%s\n", array[1]);
+                printf("%s\n", dirname);
                 printf("previous working dir : %s\n", getcwd(wd, 100));
-                char resolved_path[1024];
-                realpath(array[1], resolved_path);
-                chdir(resolved_path);
+                char dir_real_path[1024];
+                realpath(dirname, dir_real_path);
+                chdir(dir_real_path);
                 printf("current working directory : %s\n", getcwd(wd, 100));
             }
+
+            // handle PORT command reponse
             else if (strcmp(response_buffer, "Socket success.") == 0)
             {
                 char wd[100];
@@ -232,18 +226,24 @@ int main()
                 new_ret = connect(new_client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
                 printf("%s\n", OPEN_CONNECTION_NO_TRANSFER);
             }
+
+            // STOR command response
             else if (strstr(buffer, "STOR") != NULL)
             {
                 printf("Server: %s\n", response_buffer);
                 printf("File uploaded successfully.\n");
                 close(new_client_socket);
             }
+
+            // APPE command response
             else if (strstr(buffer, "APPE") != NULL)
             {
                 printf("Server: %s\n", response_buffer);
                 printf("File appended successfully.\n");
                 close(new_client_socket);
             }
+
+            // RETR command response
             else if (strstr(buffer, "RETR") != NULL)
             {
                 fflush(stdout);
@@ -260,14 +260,6 @@ int main()
                 close(new_client_socket);
                 printf("Server: %s\n", response_buffer);
                 printf("File downloaded successfully.\n");
-            }
-            else if (strstr(buffer, "RNFR") != NULL)
-            {
-                printf("%s\n", response_buffer);
-            }
-            else if (strcmp(buffer, "NOOP") == 0)
-            {
-                printf("%s\n", response_buffer);
             }
             else
             {
