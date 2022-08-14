@@ -10,6 +10,8 @@
 #include <signal.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <dirent.h>
+#include <errno.h>
 
 #define PORT 8007
 #define COMMAND_OKAY "200 Command okay."
@@ -20,29 +22,23 @@
 #define FILE_ACTION_COMPLETED "250 Requested file action okay, completed."
 #define FILE_NOT_FOUND " 550 Requested action not taken. File unavailable."
 
-int sockfd;
+int main_socket_fd;
 
 int logged_in_array[100];
 char rename_from[100][1024];
 char rename_to[100][1024];
 
-void main_method(char *buffer);
-
+// signal handler
 void kill_server_sig_handler(int signum)
 {
     if (signum == SIGINT || signum == SIGTSTP)
     {
 
         char *message = "exit";
-        // send(sockfd, message, strlen(message), 0);
-        // sleep(3);
-        shutdown(sockfd, SHUT_RDWR);
-        close(sockfd);
+        shutdown(main_socket_fd, SHUT_RDWR);
+        close(main_socket_fd);
         printf("\n[-]Socket closed successfully\n");
         exit(1);
-
-        // close(sockfd);
-        // printf("\nSocket closed successfully\n");
     }
 }
 
@@ -56,8 +52,8 @@ char *concat(const char *s1, const char *s2)
     return result;
 }
 
-char *mkd_method(char *buffer)
-{
+// helper function to split input command
+char *split_function(char *buffer) {
     int i = 0;
     char *token = strtok(buffer, " ");
     char *array[2];
@@ -68,54 +64,71 @@ char *mkd_method(char *buffer)
         token = strtok(NULL, " ");
     }
 
-    if (mkdir(array[1], 0755) == 0)
-    {
-        return array[1];
-    }
-
-    return "";
+    return array[1];
 }
 
-char *dele_method(char *buffer)
+// create new directory
+// first check if directory already exists with opendir function
+// if not create the directory
+char *mkd_function(char *buffer)
 {
-    int i = 0;
-    char *token = strtok(buffer, " ");
-    char *array[2];
+    char* dirname = split_function(buffer);
+    char* message = "";
 
-    while (token != NULL)
-    {
-        array[i++] = token;
-        token = strtok(NULL, " ");
+    DIR* dir = opendir(dirname);
+    if (dir) {
+        closedir(dir);
+        message = concat(dirname, " directory name already exists.");
+    } else {
+        if (mkdir(dirname, 0755) == 0)
+        {
+            message = concat(dirname, " directory created successfully");
+        }
     }
 
-    if (remove(array[1]) == 0)
-    {
-        return array[1];
-    }
-
-    return "";
+    return message;
 }
 
-char *rmd_method(char *buffer)
+// delete file
+// check if file already exists with access function
+char *dele_function(char *buffer)
 {
-    int i = 0;
-    char *token = strtok(buffer, " ");
-    char *array[2];
+    char *filename = split_function(buffer);
+    char *message = "";
 
-    while (token != NULL)
-    {
-        array[i++] = token;
-        token = strtok(NULL, " ");
+    if (access(filename, F_OK) == 0) {
+        if (remove(filename) == 0)
+            message = concat(filename, " file removed successfully.");
+    } else {
+        message = concat(filename, " file does not exists.");
     }
 
-    if (rmdir(array[1]) == 0)
-    {
-        return array[1];
-    }
-
-    return "";
+    return message;
 }
 
+// remove new directory
+// check if directory already exists with opendir function
+char *rmd_function(char *buffer)
+{
+    char *dirname = split_function(buffer);
+    char* message = "";
+
+    DIR* dir = opendir(dirname);
+    if (dir) {
+        closedir(dir);
+        if (rmdir(dirname) == 0)
+        {
+            message = concat(dirname, " directory removed successfully.");
+        }
+    }else {
+        message = concat(dirname, " directory does not exists.");
+    }
+
+    return message;
+}
+
+// function to create port for data transfer
+// create port and start accept new connection and listen
 int port_function(char *buffer)
 {
     int i = 0;
@@ -175,7 +188,8 @@ int port_function(char *buffer)
     }
 }
 
-int write_file(int sockfd, char *buffer)
+// function to handle file upload from client
+int stor_function(int sockfd, char *buffer)
 {
     int n;
     FILE *fp;
@@ -194,6 +208,10 @@ int write_file(int sockfd, char *buffer)
     filename = array[1];
 
     fp = fopen(filename, "w");
+    if(fp == NULL) {
+        return 0;
+    }
+
     while (1)
     {
         n = recv(sockfd, data, 1024, 0);
@@ -209,7 +227,10 @@ int write_file(int sockfd, char *buffer)
     return 1;
 }
 
-int append_file(int sockfd, char *buffer)
+// function to handle file append from client
+// append to file content if the file already exists
+// else create a file and write the content
+int appe_function(int sockfd, char *buffer)
 {
     int n;
     FILE *fp;
@@ -248,6 +269,7 @@ int append_file(int sockfd, char *buffer)
     return 1;
 }
 
+// function to send file to client over data transfer port
 int send_file(int sockfd, char *buffer)
 {
     int i = 0;
@@ -277,7 +299,9 @@ int send_file(int sockfd, char *buffer)
     return 0;
 }
 
-int rename_from_method(int sockfd, char *buffer)
+// rename from (RNFR) function
+// this command should be followed by rename to (RNTO) function
+int rnfr_function(int sockfd, char *buffer)
 {
     int i = 0;
     char *token = strtok(buffer, " ");
@@ -303,7 +327,9 @@ int rename_from_method(int sockfd, char *buffer)
     }
 }
 
-int rename_to_method(int sockfd, char *buffer)
+// rename to (RNTO) function
+// this command should be after RNFR function
+int rnto_function(int sockfd, char *buffer)
 {
     int i = 0;
     char *token = strtok(buffer, " ");
@@ -334,7 +360,7 @@ int main(int argc, char *argv[])
 {
 
     int ret;
-    struct sockaddr_in serverAddr;
+    struct sockaddr_in server_addr;
 
     int newSocket;
     struct sockaddr_in newAddr;
@@ -360,20 +386,20 @@ int main(int argc, char *argv[])
         getcwd(home_dir, 1024);
     }
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
+    main_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (main_socket_fd < 0)
     {
         printf("Error in connection.\n");
         exit(1);
     }
     printf("Server Socket is created.\n");
 
-    memset(&serverAddr, '\0', sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(PORT);
-    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    memset(&server_addr, '\0', sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    ret = bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+    ret = bind(main_socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     if (ret < 0)
     {
         printf("Error in binding.\n");
@@ -381,7 +407,7 @@ int main(int argc, char *argv[])
     }
     printf("Bind to port %d\n", PORT);
 
-    if (listen(sockfd, 100) == 0)
+    if (listen(main_socket_fd, 100) == 0)
     {
         printf("Listening....\n");
     }
@@ -392,7 +418,7 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        newSocket = accept(sockfd, (struct sockaddr *)&newAddr, &addr_size);
+        newSocket = accept(main_socket_fd, (struct sockaddr *)&newAddr, &addr_size);
         if (newSocket < 0)
         {
             exit(1);
@@ -401,11 +427,12 @@ int main(int argc, char *argv[])
 
         if ((childpid = fork()) == 0)
         {
-            close(sockfd);
+            close(main_socket_fd);
 
             while (1)
             {
                 int size = recv(newSocket, buffer, 1024, 0);
+                int new_ft_socket;
                 buffer[size] = '\0';
                 if (strcmp(buffer, "exit") == 0)
                 {
@@ -415,7 +442,6 @@ int main(int argc, char *argv[])
                 else
                 {
                     printf("Client: %s\n", buffer);
-
                     if (logged_in_array[newSocket] == 1)
                     {
                         if (strcmp(buffer, "PWD") == 0)
@@ -432,24 +458,19 @@ int main(int argc, char *argv[])
                         }
                         if (strstr(buffer, "MKD") != NULL)
                         {
-                            char *dirname = mkd_method(buffer);
-                            char *message = concat(dirname, " created successfully");
+                            char *message = mkd_function(buffer);
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strstr(buffer, "RMD") != NULL)
                         {
-                            char *dirname = rmd_method(buffer);
-                            char *message = concat(dirname, " removed successfully");
+                            char *message = rmd_function(buffer);
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strstr(buffer, "DELE") != NULL)
                         {
-                            char *dirname = dele_method(buffer);
-                            char *message = concat(dirname, " removed successfully");
+                            char *message = dele_function(buffer);
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
-                        int new_ft_socket;
-
                         if (strstr(buffer, "PORT") != NULL)
                         {
                             int ft_socket_fd = port_function(buffer);
@@ -487,14 +508,15 @@ int main(int argc, char *argv[])
                         }
                         if (strstr(buffer, "STOR") != NULL)
                         {
-                            int res = write_file(new_ft_socket, buffer);
-                            printf("%s\n", FILE_ACTION_COMPLETED);
+                            int res = stor_function(new_ft_socket, buffer);
+                            char* message = res ? FILE_ACTION_COMPLETED : "File not found";
+                            printf("%s\n", message);
                             close(new_ft_socket);
-                            int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);
+                            int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strstr(buffer, "APPE") != NULL)
                         {
-                            int res = append_file(new_ft_socket, buffer);
+                            int res = appe_function(new_ft_socket, buffer);
                             printf("%s\n", FILE_ACTION_COMPLETED);
                             close(new_ft_socket);
                             int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);
@@ -508,32 +530,15 @@ int main(int argc, char *argv[])
                         }
                         if (strstr(buffer, "RNFR") != NULL)
                         {
-                            int result = rename_from_method(newSocket, buffer);
-                            char *message = "";
-                            if (result)
-                            {
-                                message = "Please provide the new name of a file";
-                            }
-                            else
-                            {
-                                message = FILE_NOT_FOUND;
-                            }
-
+                            int result = rnfr_function(newSocket, buffer);
+                            char *message = result ? "Please provide the new name of a file" : FILE_NOT_FOUND;
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strstr(buffer, "RNTO") != NULL)
                         {
                             // printf("in rnfr main\n");
-                            int result = rename_to_method(newSocket, buffer);
-                            char *message = "";
-                            if (result)
-                            {
-                                message = "File renamed successfully";
-                            }
-                            else
-                            {
-                                message = FILE_NOT_FOUND;
-                            }
+                            int result = rnto_function(newSocket, buffer);
+                            char *message = result ? "File renamed successfully" : FILE_NOT_FOUND;
                             int sent = send(newSocket, message, strlen(message), 0);
                         }
                         if (strcmp(buffer, "NOOP") == 0)
