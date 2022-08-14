@@ -209,6 +209,45 @@ int write_file(int sockfd, char *buffer)
     return 1;
 }
 
+int append_file(int sockfd, char *buffer)
+{
+    int n;
+    FILE *fp;
+    char *filename;
+    char data[1024] = "\0";
+
+    int i = 0;
+    char *token = strtok(buffer, " ");
+    char *array[2];
+    char ch;
+
+    while (token != NULL)
+    {
+        array[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    filename = array[1];
+
+    fp = fopen(filename, "a");
+    if(fp == NULL) {
+        fp = fopen(filename, "w");
+    }
+
+    while (1)
+    {
+        n = recv(sockfd, data, 1024, 0);
+        if (n <= 0)
+        {
+            break;
+            return 0;
+        }
+        fputs(data, fp);
+        memset(data, 0, 1024);
+    }
+    fclose(fp);
+    return 1;
+}
+
 int send_file(int sockfd, char *buffer)
 {
     int i = 0;
@@ -449,6 +488,13 @@ int main(int argc, char *argv[])
                         if (strstr(buffer, "STOR") != NULL)
                         {
                             int res = write_file(new_ft_socket, buffer);
+                            printf("%s\n", FILE_ACTION_COMPLETED);
+                            close(new_ft_socket);
+                            int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);
+                        }
+                        if (strstr(buffer, "APPE") != NULL)
+                        {
+                            int res = append_file(new_ft_socket, buffer);
                             printf("%s\n", FILE_ACTION_COMPLETED);
                             close(new_ft_socket);
                             int sent = send(newSocket, FILE_ACTION_COMPLETED, strlen(FILE_ACTION_COMPLETED), 0);

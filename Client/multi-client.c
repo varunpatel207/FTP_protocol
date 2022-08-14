@@ -153,6 +153,28 @@ int main()
             send_file(file_name, new_client_socket);
             close(new_client_socket);
         }
+        if (strstr(buffer, "APPE") != NULL)
+        {
+            fflush(stdout);
+            int i = 0;
+            char temp_buffer[1024];
+            strcpy(temp_buffer, buffer);
+            char *token = strtok(temp_buffer, " ");
+            char *array[2];
+            char wd[100];
+
+            while (token != NULL)
+            {
+                array[i++] = token;
+                token = strtok(NULL, " ");
+            }
+
+            char file_name[1024];
+            realpath(array[1], file_name);
+
+            send_file(file_name, new_client_socket);
+            close(new_client_socket);
+        }
 
         send(client_socket, buffer, strlen(buffer), 0);
         if (strcmp(buffer, "exit") == 0)
@@ -216,6 +238,12 @@ int main()
                 printf("File uploaded successfully.\n");
                 close(new_client_socket);
             }
+            else if (strstr(buffer, "APPE") != NULL)
+            {
+                printf("Server: %s\n", response_buffer);
+                printf("File appended successfully.\n");
+                close(new_client_socket);
+            }
             else if (strstr(buffer, "RETR") != NULL)
             {
                 fflush(stdout);
@@ -246,9 +274,7 @@ int main()
                 printf("Server: %s\n", response_buffer);
             }
         }
-        // }
     }
-    // }
 
     return 0;
 }
