@@ -127,8 +127,35 @@ char *rmd_function(char *buffer)
     return message;
 }
 
-// function to create port for data transfer
-// create port and start accept new connection and listen
+// array for list of directories and files
+struct list_struct {
+    char list_string[100][1024];
+};
+
+char list_string[5000];
+void list_function() {
+    DIR *obj;
+    struct dirent *dir;
+    obj = opendir(".");
+
+    struct list_struct l;
+    int i = 0;
+    if(obj) {
+        while( (dir = readdir(obj) ) != NULL ) {
+             strcpy(l.list_string[i], dir->d_name);
+             i++;
+        }
+    }
+
+    strcpy(list_string, "Files or directories in current directory");
+    for (int k = 0; k < i; k++){
+        strcat(list_string, l.list_string[k]);
+        strcat(list_string, "\n");
+    }
+
+    closedir(obj);
+}
+
 int port_function(char *buffer)
 {
     int i = 0;
@@ -547,6 +574,9 @@ int main(int argc, char *argv[])
                         }
                         if (strstr(buffer, "LIST") != NULL)
                         {
+                            list_function();
+                            printf("list_string in if %s\n", list_string);
+                            int sent = send(newSocket, list_string, strlen(list_string), 0);
                         }
                     }
                     else
