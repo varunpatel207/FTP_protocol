@@ -27,6 +27,7 @@ int main_socket_fd;
 int logged_in_array[100];
 char rename_from[100][1024];
 char rename_to[100][1024];
+char list_string[5000];
 
 // signal handler
 void kill_server_sig_handler(int signum)
@@ -132,7 +133,7 @@ struct list_struct {
     char list_string[100][1024];
 };
 
-char list_string[5000];
+
 void list_function() {
     DIR *obj;
     struct dirent *dir;
@@ -575,8 +576,8 @@ int main(int argc, char *argv[])
                         if (strstr(buffer, "LIST") != NULL)
                         {
                             list_function();
-                            printf("list_string in if %s\n", list_string);
                             int sent = send(newSocket, list_string, strlen(list_string), 0);
+                            memset(list_string, 0, sizeof(list_string));
                         }
                     }
                     else
