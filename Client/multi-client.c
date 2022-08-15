@@ -176,7 +176,7 @@ int main()
         send(client_socket, buffer, strlen(buffer), 0);
 
         // close client socket on exit
-        if (strcmp(buffer, "exit") == 0)
+        if (strcmp(buffer, "QUIT") == 0)
         {
             close(client_socket);
             printf("Disconnected from server.\n");
